@@ -18,11 +18,12 @@
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */
-#define FUNDU_MOTOR_CYCLES 100
+#define FUNDU_MOTOR_MOVE_PERIOD (0.5f)
 
-// Min timer DC that drives the motor.
-// Full DC is defined by htim4.Period (default is 100).
-#define DUTY_CYCLE_MIN 11
+// Min normalized timer DC that drives the motor.
+// Value between 0.0 and 1.0.
+// Full DC is defined by htim4.Period.
+#define DUTY_CYCLE_MIN_NORM (0.11f)
 /* ---- END MODIFIABLE ------- */
 
 
@@ -47,6 +48,6 @@ volatile int32_t Fundu_Motor_Cycles;
 void Fundu_Init();
 void Fundu_Motor_SetDirection(const Fundu_Motor *motor, Motor_Direction direction);
 uint32_t Fundu_GetDutyCycle(const int8_t radius);
-
+void FunduMoto_Process(int8_t buffer[], uint32_t length);
 
 #endif /* FUNDUMOTO_H_ */

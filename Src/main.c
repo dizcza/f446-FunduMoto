@@ -80,45 +80,6 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void FunduMoto_MotorA_Forward() {
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
-	HAL_Delay(300);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
-}
-
-void FunduMoto_MotorA_Backward() {
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
-	HAL_Delay(300);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
-}
-
-void FunduMoto_Process(int8_t buffer[], uint32_t length) {
-	int8_t angle_bin = buffer[0];
-	int8_t radius = buffer[1];
-	const uint32_t radius_dc = Fundu_GetDutyCycle(radius);
-	Motor_Direction direction = (Motor_Direction) (angle_bin > 0);
-	if (angle_bin < 0) {
-		angle_bin = -angle_bin;
-	}
-	const float right_scale = angle_bin * 1.f / (ANGLE_BINS - angle_bin);
-	uint32_t right_move, left_move;
-	if (right_scale < 1.f) {
-		right_move = (uint32_t) (right_scale * radius_dc);
-		left_move = radius_dc;
-	} else {
-		right_move = radius_dc;
-		left_move = (uint32_t) (1.f / right_scale * radius_dc);
-	}
-	motorA.duty_cycle = left_move;
-	motorB.duty_cycle = right_move;
-	Fundu_Motor_SetDirection(&motorA, direction);
-	Fundu_Motor_SetDirection(&motorB, direction);
-	Fundu_Motor_Cycles = FUNDU_MOTOR_CYCLES;
-}
-
-
 /* USER CODE END 0 */
 
 /**
@@ -167,35 +128,6 @@ int main(void)
   	/* Start UART4 DMA Reception */
   	HAL_UART_Receive_DMA(&huart4, rx, BUF_SIZE);
 
-  	/* Infinite loop */
-  	while (1) {
-  		/* Check number of bytes in RingBuffer */
-  		rx_count = RingBuffer_DMA_Count(&rx_buf);
-  		/* Process each byte individually */
-  		while (rx_count--) {
-  			/* Read out one byte from RingBuffer */
-  			uint8_t b = RingBuffer_DMA_GetByte(&rx_buf);
-  			if (b == '\n') { /* If \n process command */
-  				/* Terminate string with \0 */
-  				cmd[icmd] = 0;
-  				FunduMoto_Process(cmd, icmd);
-  				icmd = 0;
-  				/* Process command */
-  			} else if (b == '\r') { /* If \r skip */
-  				continue;
-  			} else { /* If regular character, put it into cmd[] */
-  				cmd[icmd++] = (int8_t) b;
-  			}
-  		}
-  		/* Send ping message every second */
-  		if (HAL_GetTick() - lastTick > 1000) {
-  			sprintf((char *) tx, "ping\r\n");
-  			HAL_UART_Transmit(&huart4, tx, strlen((char *) tx), 100);
-  			lastTick = HAL_GetTick();
-  		}
-  	}
-
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -203,9 +135,30 @@ int main(void)
   while (1)
   {
 
-//	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-//	  FunduMoto_MotorA_Forward();
-//	  FunduMoto_MotorA_Backward();
+	/* Check number of bytes in RingBuffer */
+	rx_count = RingBuffer_DMA_Count(&rx_buf);
+	/* Process each byte individually */
+	while (rx_count--) {
+		/* Read out one byte from RingBuffer */
+		uint8_t b = RingBuffer_DMA_GetByte(&rx_buf);
+		if (b == '\n') { /* If \n process command */
+			/* Terminate string with \0 */
+			cmd[icmd] = '\0';
+			FunduMoto_Process(cmd, icmd);
+			icmd = 0;
+			/* Process command */
+		} else if (b == '\r') { /* If \r skip */
+			continue;
+		} else { /* If regular character, put it into cmd[] */
+			cmd[icmd++] = (int8_t) b;
+		}
+	}
+	/* Send ping message every second */
+	if (HAL_GetTick() - lastTick > 7000) {
+		sprintf((char *) tx, "ping\r\n");
+		HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
+		lastTick = HAL_GetTick();
+	}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
