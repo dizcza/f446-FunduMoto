@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -27,6 +28,11 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "fundumoto.h"
+#include "ringbuffer_dma.h"
+
+#include <string.h>
+#include <stdio.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +53,21 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+/* Ringbuffer for Rx messages */
+RingBuffer_DMA rx_buf;
+/* Array for DMA to save Rx bytes */
+#define BUF_SIZE 256
+uint8_t rx[BUF_SIZE];
+uint32_t rx_count = 0;
+/* Array for received commands */
+int8_t cmd[128];
+uint32_t icmd = 0;
+/* Array for Tx messages */
+uint8_t tx[100];
+/* Timestamp variable */
+uint32_t lastTick = 0;
+
 
 /* USER CODE END PV */
 
@@ -71,6 +92,30 @@ void FunduMoto_MotorA_Backward() {
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
 	HAL_Delay(300);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
+}
+
+void FunduMoto_Process(int8_t buffer[], uint32_t length) {
+	int8_t angle_bin = buffer[0];
+	int8_t radius = buffer[1];
+	const uint32_t radius_dc = Fundu_GetDutyCycle(radius);
+	Motor_Direction direction = (Motor_Direction) (angle_bin > 0);
+	if (angle_bin < 0) {
+		angle_bin = -angle_bin;
+	}
+	const float right_scale = angle_bin * 1.f / (ANGLE_BINS - angle_bin);
+	uint32_t right_move, left_move;
+	if (right_scale < 1.f) {
+		right_move = (uint32_t) (right_scale * radius_dc);
+		left_move = radius_dc;
+	} else {
+		right_move = radius_dc;
+		left_move = (uint32_t) (1.f / right_scale * radius_dc);
+	}
+	motorA.duty_cycle = left_move;
+	motorB.duty_cycle = right_move;
+	Fundu_Motor_SetDirection(&motorA, direction);
+	Fundu_Motor_SetDirection(&motorB, direction);
+	Fundu_Motor_Cycles = FUNDU_MOTOR_CYCLES;
 }
 
 
@@ -105,16 +150,51 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_TIM4_Init();
   MX_TIM3_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start_IT(&htim3, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
   Fundu_Init();
   HAL_Delay(300);
-  Fundu_Forward();
+
+  /* Init RingBuffer_DMA object */
+  	RingBuffer_DMA_Init(&rx_buf, huart4.hdmarx, rx, BUF_SIZE);
+  	/* Start UART4 DMA Reception */
+  	HAL_UART_Receive_DMA(&huart4, rx, BUF_SIZE);
+
+  	/* Infinite loop */
+  	while (1) {
+  		/* Check number of bytes in RingBuffer */
+  		rx_count = RingBuffer_DMA_Count(&rx_buf);
+  		/* Process each byte individually */
+  		while (rx_count--) {
+  			/* Read out one byte from RingBuffer */
+  			uint8_t b = RingBuffer_DMA_GetByte(&rx_buf);
+  			if (b == '\n') { /* If \n process command */
+  				/* Terminate string with \0 */
+  				cmd[icmd] = 0;
+  				FunduMoto_Process(cmd, icmd);
+  				icmd = 0;
+  				/* Process command */
+  			} else if (b == '\r') { /* If \r skip */
+  				continue;
+  			} else { /* If regular character, put it into cmd[] */
+  				cmd[icmd++] = (int8_t) b;
+  			}
+  		}
+  		/* Send ping message every second */
+  		if (HAL_GetTick() - lastTick > 1000) {
+  			sprintf((char *) tx, "ping\r\n");
+  			HAL_UART_Transmit(&huart4, tx, strlen((char *) tx), 100);
+  			lastTick = HAL_GetTick();
+  		}
+  	}
+
 
   /* USER CODE END 2 */
 
