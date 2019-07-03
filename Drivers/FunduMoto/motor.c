@@ -6,8 +6,8 @@
  */
 
 
-#include "fundumoto.h"
 #include "tim.h"
+#include "../FunduMoto/fundumoto.h"
 
 Fundu_Motor motorA = {.htim=&htim4, .direction_gpio=GPIOA, .direction_pin=GPIO_PIN_6, .duty_cycle=0U};
 Fundu_Motor motorB = {.htim=&htim3, .direction_gpio=GPIOA, .direction_pin=GPIO_PIN_5, .duty_cycle=0U};
