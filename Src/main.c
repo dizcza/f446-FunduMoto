@@ -28,10 +28,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "fundumoto.h"
-#include "ringbuffer_dma.h"
-
-#include <string.h>
-#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -53,21 +49,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
-/* Ringbuffer for Rx messages */
-RingBuffer_DMA rx_buf;
-/* Array for DMA to save Rx bytes */
-#define BUF_SIZE 256
-uint8_t rx[BUF_SIZE];
-uint32_t rx_count = 0;
-/* Array for received commands */
-int8_t cmd[128];
-uint32_t icmd = 0;
-/* Array for Tx messages */
-uint8_t tx[100];
-/* Timestamp variable */
-uint32_t lastTick = 0;
-
 
 /* USER CODE END PV */
 
@@ -120,13 +101,7 @@ int main(void)
   HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
-  Fundu_Init();
-  HAL_Delay(300);
-
-  /* Init RingBuffer_DMA object */
-  	RingBuffer_DMA_Init(&rx_buf, huart4.hdmarx, rx, BUF_SIZE);
-  	/* Start UART4 DMA Reception */
-  	HAL_UART_Receive_DMA(&huart4, rx, BUF_SIZE);
+  FunduMoto_Init();
 
   /* USER CODE END 2 */
 
@@ -134,31 +109,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  FunduMoto_Update();
 
 	/* Check number of bytes in RingBuffer */
-	rx_count = RingBuffer_DMA_Count(&rx_buf);
-	/* Process each byte individually */
-	while (rx_count--) {
-		/* Read out one byte from RingBuffer */
-		uint8_t b = RingBuffer_DMA_GetByte(&rx_buf);
-		if (b == '\n') { /* If \n process command */
-			/* Terminate string with \0 */
-			cmd[icmd] = '\0';
-			FunduMoto_Process(cmd, icmd);
-			icmd = 0;
-			/* Process command */
-		} else if (b == '\r') { /* If \r skip */
-			continue;
-		} else { /* If regular character, put it into cmd[] */
-			cmd[icmd++] = (int8_t) b;
-		}
-	}
-	/* Send ping message every second */
-	if (HAL_GetTick() - lastTick > 7000) {
-		sprintf((char *) tx, "ping\r\n");
-		HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
-		lastTick = HAL_GetTick();
-	}
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -45,9 +45,11 @@ extern Fundu_Motor motorB;
 volatile int32_t Fundu_Motor_Cycles;
 
 
-void Fundu_Init();
-void Fundu_Motor_SetDirection(const Fundu_Motor *motor, Motor_Direction direction);
-uint32_t Fundu_GetDutyCycle(const int8_t radius);
-void FunduMoto_Process(int8_t buffer[], uint32_t length);
+void FunduMoto_Init();
+void FunduMoto_SetDirection(const Fundu_Motor *motor, Motor_Direction direction);
+uint32_t FunduMoto_GetDutyCycle(const int8_t radius);
+void FunduMoto_ProcessCommand(int8_t buffer[], uint32_t length);
+void FunduMoto_Update();
+void FunduMoto_Move(int8_t angle_bin, int8_t radius);
 
 #endif /* FUNDUMOTO_H_ */
