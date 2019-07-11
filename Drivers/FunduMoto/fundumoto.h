@@ -15,6 +15,8 @@
 /* --- DO NOT MODIFY THESE --- */
 #define VELOCITY_AMPLITUDE 100
 #define ANGLE_BINS 18
+#define SONAR_TRIGGER_BURST_USEC 10
+#define SONAR_SOUND_SPEED_INV 54  // 1e2 / (343 / 2 * 1e6) [usec/centimeters]
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */
@@ -24,6 +26,8 @@
 // Value between 0.0 and 1.0.
 // Full DC is defined by htim4.Period.
 #define DUTY_CYCLE_MIN_NORM (0.11f)
+
+#define SONAR_MAX_DIST 400  // centimeters
 /* ---- END MODIFIABLE ------- */
 
 
@@ -42,14 +46,17 @@ typedef enum {
 extern Fundu_Motor motorA;
 extern Fundu_Motor motorB;
 
-volatile int32_t Fundu_Motor_Cycles;
-
+__STATIC_INLINE void FunduMoto_SetDirection(const Fundu_Motor *motor, Motor_Direction direction) {
+	HAL_GPIO_WritePin(motor->direction_gpio, motor->direction_pin, direction);
+}
 
 void FunduMoto_Init();
-void FunduMoto_SetDirection(const Fundu_Motor *motor, Motor_Direction direction);
 uint32_t FunduMoto_GetDutyCycle(const int8_t radius);
 void FunduMoto_ProcessCommand(int8_t buffer[], uint32_t length);
 void FunduMoto_Update();
+void FunduMoto_SendSonarDist();
 void FunduMoto_Move(int8_t angle_bin, int8_t radius);
+int32_t FunduMoto_GetServoAngle();
+
 
 #endif /* FUNDUMOTO_H_ */

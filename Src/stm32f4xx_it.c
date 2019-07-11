@@ -43,7 +43,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-uint32_t tick = 0;
+static uint32_t m_sonar_echo_triggered = 0U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -53,15 +53,17 @@ uint32_t tick = 0;
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-extern TIM_HandleTypeDef htim3;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 extern DMA_HandleTypeDef hdma_uart4_rx;
 extern UART_HandleTypeDef huart4;
 /* USER CODE BEGIN EV */
-
+extern TIM_HandleTypeDef htim14;
+extern volatile int32_t FunduMoto_MotorCycles;
+extern volatile uint32_t FunduMoto_SonarEchoUSec;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -215,19 +217,64 @@ void DMA1_Stream2_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles EXTI line[9:5] interrupts.
+  */
+void EXTI9_5_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI9_5_IRQn 0 */
+	uint32_t tick_usec = htim1.Instance->CNT;
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == GPIO_PIN_SET) {
+		m_sonar_echo_triggered = tick_usec;
+	} else if (tick_usec > m_sonar_echo_triggered) {
+		FunduMoto_SonarEchoUSec = tick_usec - m_sonar_echo_triggered;
+	}
+
+  /* USER CODE END EXTI9_5_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_8);
+  /* USER CODE BEGIN EXTI9_5_IRQn 1 */
+
+  /* USER CODE END EXTI9_5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM3 global interrupt.
+  */
+void TIM3_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM3_IRQn 0 */
+	htim3.Instance->CCR2 = 1500 + FunduMoto_GetServoAngle() * 10;
+//	angle += delta;
+//	if (angle < -89 || angle > 89) {
+//		delta = -delta;
+//	}
+//	if (angle > 90) {
+//		angle = 90;
+//	} else if (angle < -90) {
+//		angle = -90;
+//	}
+//	htim3.Instance->CCR2 = 1500 + angle * 10;
+
+  /* USER CODE END TIM3_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim3);
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /* USER CODE END TIM3_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM4 global interrupt.
   */
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
-  Fundu_Motor_Cycles--;
-  if (Fundu_Motor_Cycles <= 0) {
-	  Fundu_Motor_Cycles = 0;
+  FunduMoto_MotorCycles--;
+  if (FunduMoto_MotorCycles <= 0) {
+	  FunduMoto_MotorCycles = 0;
 	  motorA.duty_cycle = 0U;
 	  motorB.duty_cycle = 0U;
   }
   htim4.Instance->CCR1 = motorA.duty_cycle;
-  htim3.Instance->CCR2 = motorB.duty_cycle;
+  htim14.Instance->CCR1 = motorB.duty_cycle;
   /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */

@@ -97,12 +97,10 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM3_Init();
   MX_UART4_Init();
+  MX_TIM1_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-
   FunduMoto_Init();
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -110,9 +108,7 @@ int main(void)
   while (1)
   {
 	  FunduMoto_Update();
-
-	/* Check number of bytes in RingBuffer */
-
+	  FunduMoto_SendSonarDist();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
