@@ -226,6 +226,7 @@ void EXTI9_5_IRQHandler(void)
 	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == GPIO_PIN_SET) {
 		m_sonar_echo_triggered = tick_usec;
 	} else if (tick_usec > m_sonar_echo_triggered) {
+		// todo handle tick_usec < m_sonar_echo_triggered
 		FunduMoto_SonarEchoUSec = tick_usec - m_sonar_echo_triggered;
 	}
 
@@ -242,7 +243,7 @@ void EXTI9_5_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	htim3.Instance->CCR2 = 1500 + FunduMoto_GetServoAngle() * 10;
+	htim3.Instance->CCR2 = SERVO_90 + FunduMoto_GetServoAngle() * SERVO_STEP;
 //	angle += delta;
 //	if (angle < -89 || angle > 89) {
 //		delta = -delta;

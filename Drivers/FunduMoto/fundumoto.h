@@ -17,6 +17,8 @@
 #define ANGLE_BINS 18
 #define SONAR_TRIGGER_BURST_USEC 10
 #define SONAR_SOUND_SPEED_INV 54  // 1e2 / (343 / 2 * 1e6) [usec/centimeters]
+#define SERVO_90 1500
+#define SERVO_STEP 10
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */

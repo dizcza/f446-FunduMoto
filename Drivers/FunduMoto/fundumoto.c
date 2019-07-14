@@ -13,13 +13,15 @@
 #include <string.h>
 #include <stdio.h>
 
+#define SONAR_ECHO_USEC_IDLE (-1)
+
 Fundu_Motor motorA = { .htim = &htim4, .direction_gpio = GPIOA, .direction_pin =
 GPIO_PIN_6, .duty_cycle = 0U };
 Fundu_Motor motorB = { .htim = &htim14, .direction_gpio = GPIOA, .direction_pin =
 GPIO_PIN_5, .duty_cycle = 0U };
 
 volatile int32_t FunduMoto_MotorCycles = 0;
-volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
+volatile int32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
 RingBuffer_DMA rx_buf;
 /* Array for DMA to save Rx bytes */
@@ -156,15 +158,21 @@ int32_t FunduMoto_GetServoAngle() {
 
 
 void FunduMoto_SendSonarDist() {
-	if (FunduMoto_SonarEchoUSec > 0U) {
-		uint32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
-		FunduMoto_SonarEchoUSec = 0U;
+	if (FunduMoto_SonarEchoUSec != SONAR_ECHO_USEC_IDLE) {
+		int32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
+		FunduMoto_SonarEchoUSec = SONAR_ECHO_USEC_IDLE;
+		int32_t servo_angle = (((int32_t) htim3.Instance->CCR2) - SERVO_90) / SERVO_STEP;
 		if (dist_cm > SONAR_MAX_DIST) {
 			dist_cm = SONAR_MAX_DIST;
 		}
 		float dist_norm = dist_cm / (float) SONAR_MAX_DIST;
 		uint8_t dist_packed = (uint8_t) (dist_norm * 0xFF);
-		sprintf((char *) tx, "S%d\r\n", dist_packed);
-		HAL_UART_Transmit_IT(&huart4, tx, 4U);
+		tx[0] = 'S';
+		tx[1] = (uint8_t) servo_angle;
+		tx[2] = dist_packed;
+		tx[3] = '\r';
+		tx[4] = '\n';
+		HAL_UART_Transmit_IT(&huart4, tx, 5);
+		HAL_Delay(20);
 	}
 }
