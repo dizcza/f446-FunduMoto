@@ -222,12 +222,12 @@ void DMA1_Stream2_IRQHandler(void)
 void EXTI9_5_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI9_5_IRQn 0 */
-	uint32_t tick_usec = htim1.Instance->CNT;
+	uint32_t tick = htim1.Instance->CNT;
 	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == GPIO_PIN_SET) {
-		m_sonar_echo_triggered = tick_usec;
-	} else if (tick_usec > m_sonar_echo_triggered) {
-		// todo handle tick_usec < m_sonar_echo_triggered
-		FunduMoto_SonarEchoUSec = tick_usec - m_sonar_echo_triggered;
+		m_sonar_echo_triggered = tick;
+	} else if (tick > m_sonar_echo_triggered) {
+		// ignore spurious events when tick < m_sonar_echo_triggered
+		FunduMoto_SonarEchoUSec = SONAR_TICK_USEC * (tick - m_sonar_echo_triggered);
 	}
 
   /* USER CODE END EXTI9_5_IRQn 0 */
