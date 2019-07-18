@@ -63,7 +63,7 @@ extern UART_HandleTypeDef huart4;
 /* USER CODE BEGIN EV */
 extern TIM_HandleTypeDef htim14;
 extern volatile int32_t FunduMoto_MotorCycles;
-extern volatile int32_t FunduMoto_SonarEchoUSec;
+extern volatile uint32_t FunduMoto_SonarEchoUSec;
 /* USER CODE END EV */
 
 /******************************************************************************/

@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define SONAR_ECHO_USEC_IDLE (0)
+#define SONAR_ECHO_USEC_IDLE 0U
 
 Fundu_Motor motorA = { .htim = &htim4, .direction_gpio = GPIOA, .direction_pin =
 GPIO_PIN_6, .duty_cycle = 0U };
@@ -22,7 +22,7 @@ Fundu_Motor motorB = { .htim = &htim14, .direction_gpio = GPIOA,
 		.direction_pin = GPIO_PIN_5, .duty_cycle = 0U };
 
 volatile int32_t FunduMoto_MotorCycles = 0;
-volatile int32_t FunduMoto_SonarEchoUSec = 0;  // microseconds
+volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
 RingBuffer_DMA rx_buf;
 /* Array for DMA to save Rx bytes */
@@ -176,7 +176,7 @@ int8_t GetFilteredSonarVector(SonarVector *vec_filtered) {
 
 void FunduMoto_SendSonarDist() {
 	if (FunduMoto_SonarEchoUSec != SONAR_ECHO_USEC_IDLE) {
-		int32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
+		uint32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
 		int32_t servo_angle = (((int32_t) htim3.Instance->CCR2) - SERVO_90_DC)
 				/ SERVO_STEP_DC;
 		if (dist_cm > SONAR_MAX_DIST) {
