@@ -16,8 +16,8 @@
 #define SONAR_TRIGGER_BURST_TICKS 5
 #define SONAR_TICK_USEC 2
 #define SONAR_SOUND_SPEED_INV 54  // 1e2 / (343 / 2 * 1e6) [usec/centimeters]
-#define SERVO_90 1500
-#define SERVO_STEP 10
+#define SERVO_90_DC 1500
+#define SERVO_STEP_DC 10
 #define ARG_SEPARATOR ','
 /* ---- END DO NOT MODIFY ---- */
 
@@ -30,7 +30,7 @@
 #define DUTY_CYCLE_MIN_NORM (0.11f)
 
 #define SONAR_MAX_DIST 400  // centimeters
-#define SONAR_MEDIAN_FILTER_SIZE 3
+#define SONAR_MEDIAN_FILTER_SIZE 5
 /* ---- END MODIFIABLE ------- */
 
 
@@ -44,26 +44,24 @@ typedef struct Fundu_Motor {
 typedef enum {
 	BACKWARD = 0U,
 	FORWARD = !BACKWARD
-} Motor_Direction;
+} MotorDirection;
 
-typedef struct Fundu_SonarVector {
+typedef struct SonarVector {
 	int32_t servo_angle;
 	int32_t sonar_dist;
-} Fundu_SonarVector;
+} SonarVector;
 
 extern Fundu_Motor motorA;
 extern Fundu_Motor motorB;
 
-__STATIC_INLINE void FunduMoto_SetDirection(const Fundu_Motor *motor, Motor_Direction direction) {
+__STATIC_INLINE void FunduMoto_SetDirection(const Fundu_Motor *motor, MotorDirection direction) {
 	HAL_GPIO_WritePin(motor->direction_gpio, motor->direction_pin, direction);
 }
 
 void FunduMoto_Init();
-uint32_t FunduMoto_GetDutyCycle(float radius_norm);
-void FunduMoto_ProcessCommand();
 void FunduMoto_Update();
 void FunduMoto_SendSonarDist();
-void FunduMoto_Move(int32_t angle_bin, float radius_norm);
+void FunduMoto_Move(int32_t angle, float radius_norm);
 int32_t FunduMoto_GetServoAngle();
 
 

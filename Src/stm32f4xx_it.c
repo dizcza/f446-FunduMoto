@@ -63,7 +63,7 @@ extern UART_HandleTypeDef huart4;
 /* USER CODE BEGIN EV */
 extern TIM_HandleTypeDef htim14;
 extern volatile int32_t FunduMoto_MotorCycles;
-extern volatile uint32_t FunduMoto_SonarEchoUSec;
+extern volatile int32_t FunduMoto_SonarEchoUSec;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -243,7 +243,7 @@ void EXTI9_5_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	htim3.Instance->CCR2 = SERVO_90 + FunduMoto_GetServoAngle() * SERVO_STEP;
+	htim3.Instance->CCR2 = SERVO_90_DC + FunduMoto_GetServoAngle() * SERVO_STEP_DC;
 //	angle += delta;
 //	if (angle < -89 || angle > 89) {
 //		delta = -delta;
