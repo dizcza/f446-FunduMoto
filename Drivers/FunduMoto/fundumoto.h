@@ -30,7 +30,11 @@
 #define DUTY_CYCLE_MIN_NORM (0.11f)
 
 #define SONAR_MAX_DIST 400  // centimeters
+#define SONAR_TOLERANCE 1
 #define SONAR_MEDIAN_FILTER_SIZE 5
+
+/* Array for DMA to save Rx bytes */
+#define RINGBUF_RX_SIZE 256
 /* ---- END MODIFIABLE ------- */
 
 

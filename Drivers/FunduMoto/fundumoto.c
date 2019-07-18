@@ -15,6 +15,7 @@
 #include <stdlib.h>
 
 #define SONAR_ECHO_USEC_IDLE 0U
+#define TX_BUF_LEN 32
 
 Fundu_Motor motorA = { .htim = &htim4, .direction_gpio = GPIOA, .direction_pin =
 GPIO_PIN_6, .duty_cycle = 0U };
@@ -25,22 +26,25 @@ volatile int32_t FunduMoto_MotorCycles = 0;
 volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
 RingBuffer_DMA rx_buf;
-/* Array for DMA to save Rx bytes */
-#define RINGBUF_RX_SIZE 256
 uint8_t rx[RINGBUF_RX_SIZE];
+uint8_t tx[TX_BUF_LEN];
+uint8_t tx_last[TX_BUF_LEN];
+
 /* Array for received commands */
-uint8_t cmd[128];
+uint8_t received_cmd[32];
 uint32_t cmd_len = 0U;
-/* Array for Tx messages */
-uint8_t tx[100];
 
 static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE];
 static uint32_t m_angular_dist_events = 0U;
-
 static volatile int32_t m_servo_angle = 0;
+static SonarVector m_last_sonar_vec = {
+		.servo_angle = 0,
+		.sonar_dist = 0
+};
 
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm);
 static void FunduMoto_ProcessCommand();
+static int8_t IsSonarVectorChanged(const SonarVector *vec);
 
 void FunduMoto_Init() {
 	assert_param(SONAR_TRIGGER_BURST_TICKS * SONAR_TICK_USEC == 10);
@@ -54,7 +58,6 @@ void FunduMoto_Init() {
 	RingBuffer_DMA_Init(&rx_buf, huart4.hdmarx, rx, RINGBUF_RX_SIZE);
 	/* Start UART4 DMA Reception */
 	HAL_UART_Receive_DMA(&huart4, rx, RINGBUF_RX_SIZE);
-
 }
 
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm) {
@@ -98,18 +101,18 @@ static void FunduMoto_ProcessCommand() {
 	if (cmd_len == 0) {
 		return;
 	}
-	switch (cmd[0]) {
+	switch (received_cmd[0]) {
 	case 'M':  // Motor
-		// format: M<angle:3d>,<radius:2d>
+		// format: M<angle:3d>,<radius:.2f>
 		// angle in [-90, 90]
 		// radius in [0, VELOCITY_AMPLITUDE]
-		if (cmd[4] != ARG_SEPARATOR) {
+		if (cmd_len != 9 || received_cmd[4] != ARG_SEPARATOR) {
 			// invalid packet
 			return;
 		}
-		char angle_str[4] = { cmd[1], cmd[2], cmd[3] };
+		char angle_str[4] = { received_cmd[1], received_cmd[2], received_cmd[3] };
 		int32_t angle = atoi(angle_str);
-		float radius_norm = atof((char*) &cmd[5]);
+		float radius_norm = atof((char*) &received_cmd[5]);
 		FunduMoto_Move(angle, radius_norm);
 		break;
 	case 'B':  // Buzzer
@@ -118,7 +121,11 @@ static void FunduMoto_ProcessCommand() {
 	case 'S':  // Servo
 		// format: S<angle:3d>
 		// angle in [-90, 90]
-		m_servo_angle = atoi((char*) &cmd[1]);
+		if (cmd_len != 4) {
+			// invalid packet
+			return;
+		}
+		m_servo_angle = atoi((char*) &received_cmd[1]);
 		if (m_servo_angle > 90) {
 			m_servo_angle = 90;
 		} else if (m_servo_angle < -90) {
@@ -140,12 +147,12 @@ void FunduMoto_Update() {
 			break;
 		case '\n':
 			/* Terminate string with \0 and process the command. */
-			cmd[cmd_len] = '\0';
+			received_cmd[cmd_len] = '\0';
 			FunduMoto_ProcessCommand();
 			cmd_len = 0U;
 			break;
 		default:
-			cmd[cmd_len++] = b;
+			received_cmd[cmd_len++] = b;
 			break;
 		}
 	}
@@ -174,26 +181,66 @@ int8_t GetFilteredSonarVector(SonarVector *vec_filtered) {
 	return 0;
 }
 
+void UpdateSonarDist() {
+	uint32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
+	int32_t servo_angle = (((int32_t) htim3.Instance->CCR2) - SERVO_90_DC)
+			/ SERVO_STEP_DC;
+	if (dist_cm > SONAR_MAX_DIST) {
+		dist_cm = SONAR_MAX_DIST;
+	}
+	SonarVector *angular_dist = &m_sonar_vec[m_angular_dist_events
+			% SONAR_MEDIAN_FILTER_SIZE];
+	angular_dist->servo_angle = servo_angle;
+	angular_dist->sonar_dist = dist_cm;
+	m_angular_dist_events++;
+	FunduMoto_SonarEchoUSec = SONAR_ECHO_USEC_IDLE;
+}
+
+void CopySonarVector(SonarVector *dest, const SonarVector *src) {
+	dest->servo_angle = src->servo_angle;
+	dest->sonar_dist = src->sonar_dist;
+}
+
+
+void FunduMoto_Transmitt(uint8_t *msg) {
+	if (strcmp((const char*) msg, (const char*) tx_last) != 0) {
+		strcpy((char*) tx_last, (const char*) msg);
+		HAL_UART_Transmit_IT(&huart4, msg, strlen((char *) msg));
+	}
+}
+
+
+static int8_t IsSonarVectorChanged(const SonarVector *vec) {
+	if (vec->servo_angle != m_last_sonar_vec.servo_angle) {
+		CopySonarVector(&m_last_sonar_vec, vec);
+		return 1;
+	}
+	int32_t dist_diff = vec->sonar_dist - m_last_sonar_vec.sonar_dist;
+	if (dist_diff < 0) {
+		dist_diff = -dist_diff;
+	}
+	if (dist_diff > SONAR_TOLERANCE) {
+		CopySonarVector(&m_last_sonar_vec, vec);
+		return 1;
+	}
+	return 0;
+}
+
 void FunduMoto_SendSonarDist() {
 	if (FunduMoto_SonarEchoUSec != SONAR_ECHO_USEC_IDLE) {
-		uint32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
-		int32_t servo_angle = (((int32_t) htim3.Instance->CCR2) - SERVO_90_DC)
-				/ SERVO_STEP_DC;
-		if (dist_cm > SONAR_MAX_DIST) {
-			dist_cm = SONAR_MAX_DIST;
-		}
-		SonarVector *angular_dist = &m_sonar_vec[m_angular_dist_events
-				% SONAR_MEDIAN_FILTER_SIZE];
-		angular_dist->servo_angle = servo_angle;
-		angular_dist->sonar_dist = dist_cm;
-		m_angular_dist_events++;
+		UpdateSonarDist();
 
 		SonarVector vec_median;
-		GetFilteredSonarVector(&vec_median);
+		if (GetFilteredSonarVector(&vec_median) != 0) {
+			return;
+		}
+
+		if (!IsSonarVectorChanged(&vec_median)) {
+			return;
+		}
 
 		float dist_norm = vec_median.sonar_dist / (float) SONAR_MAX_DIST;
-		sprintf((char *) tx, "S%03ld,%.2f\r\n", vec_median.servo_angle, dist_norm);
-		HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
-		FunduMoto_SonarEchoUSec = SONAR_ECHO_USEC_IDLE;
+		sprintf((char *) tx, "S%03ld,%.3f\r\n", vec_median.servo_angle, dist_norm);
+		FunduMoto_Transmitt(tx);
 	}
 }
