@@ -15,7 +15,6 @@
 #include <stdlib.h>
 
 #define SONAR_ECHO_USEC_IDLE 0U
-#define TX_BUF_LEN 32
 
 Fundu_Motor motorA = { .htim = &htim4, .direction_gpio = GPIOA, .direction_pin =
 GPIO_PIN_6, .duty_cycle = 0U };
@@ -27,8 +26,7 @@ volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
 RingBuffer_DMA rx_buf;
 uint8_t rx[RINGBUF_RX_SIZE];
-uint8_t tx[TX_BUF_LEN];
-uint8_t tx_last[TX_BUF_LEN];
+uint8_t tx[32];
 
 /* Array for received commands */
 uint8_t received_cmd[32];
@@ -37,14 +35,12 @@ uint32_t cmd_len = 0U;
 static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE];
 static uint32_t m_angular_dist_events = 0U;
 static volatile int32_t m_servo_angle = 0;
-static SonarVector m_last_sonar_vec = {
-		.servo_angle = 0,
-		.sonar_dist = 0
-};
+static SonarVector m_last_sonar_vec;
 
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm);
 static void FunduMoto_ProcessCommand();
 static int8_t IsSonarVectorChanged(const SonarVector *vec);
+static void ResetInternalState();
 
 void FunduMoto_Init() {
 	assert_param(SONAR_TRIGGER_BURST_TICKS * SONAR_TICK_USEC == 10);
@@ -52,12 +48,22 @@ void FunduMoto_Init() {
 	HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);    // motorB
 	HAL_TIM_PWM_Start_IT(&htim3, TIM_CHANNEL_2);  // servo
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);     // sonar
+
+	// Init default PWM values
 	htim1.Instance->CCR2 = SONAR_TRIGGER_BURST_TICKS;
+	htim3.Instance->CCR2 = SERVO_90_DC;
 
 	/* Init RingBuffer_DMA object */
 	RingBuffer_DMA_Init(&rx_buf, huart4.hdmarx, rx, RINGBUF_RX_SIZE);
 	/* Start UART4 DMA Reception */
 	HAL_UART_Receive_DMA(&huart4, rx, RINGBUF_RX_SIZE);
+
+	ResetInternalState();
+}
+
+static void ResetInternalState() {
+	m_last_sonar_vec.servo_angle = 0;
+	m_last_sonar_vec.sonar_dist = 0;
 }
 
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm) {
@@ -101,6 +107,7 @@ static void FunduMoto_ProcessCommand() {
 	if (cmd_len == 0) {
 		return;
 	}
+	ResetInternalState();
 	switch (received_cmd[0]) {
 	case 'M':  // Motor
 		// format: M<angle:3d>,<radius:.2f>
@@ -202,14 +209,6 @@ void CopySonarVector(SonarVector *dest, const SonarVector *src) {
 }
 
 
-void FunduMoto_Transmitt(uint8_t *msg) {
-	if (strcmp((const char*) msg, (const char*) tx_last) != 0) {
-		strcpy((char*) tx_last, (const char*) msg);
-		HAL_UART_Transmit_IT(&huart4, msg, strlen((char *) msg));
-	}
-}
-
-
 static int8_t IsSonarVectorChanged(const SonarVector *vec) {
 	if (vec->servo_angle != m_last_sonar_vec.servo_angle) {
 		CopySonarVector(&m_last_sonar_vec, vec);
@@ -241,6 +240,6 @@ void FunduMoto_SendSonarDist() {
 
 		float dist_norm = vec_median.sonar_dist / (float) SONAR_MAX_DIST;
 		sprintf((char *) tx, "S%03ld,%.3f\r\n", vec_median.servo_angle, dist_norm);
-		FunduMoto_Transmitt(tx);
+		HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
 	}
 }
