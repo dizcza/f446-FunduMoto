@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define SONAR_ECHO_USEC_IDLE 0U
 
@@ -24,13 +25,13 @@ Fundu_Motor motorB = { .htim = &htim14, .direction_gpio = GPIOA,
 volatile int32_t FunduMoto_MotorCycles = 0;
 volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
-RingBuffer_DMA rx_buf;
+RingBuffer_DMA rx_buf_dma;
 uint8_t rx[RINGBUF_RX_SIZE];
 uint8_t tx[32];
 
 /* Array for received commands */
-uint8_t received_cmd[32];
-uint32_t cmd_len = 0U;
+uint8_t rx_cmd[32];
+uint32_t rx_cmd_len = 0U;
 
 static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE];
 static uint32_t m_angular_dist_events = 0U;
@@ -54,7 +55,7 @@ void FunduMoto_Init() {
 	htim3.Instance->CCR2 = SERVO_90_DC;
 
 	/* Init RingBuffer_DMA object */
-	RingBuffer_DMA_Init(&rx_buf, huart4.hdmarx, rx, RINGBUF_RX_SIZE);
+	RingBuffer_DMA_Init(&rx_buf_dma, huart4.hdmarx, rx, RINGBUF_RX_SIZE);
 	/* Start UART4 DMA Reception */
 	HAL_UART_Receive_DMA(&huart4, rx, RINGBUF_RX_SIZE);
 
@@ -85,7 +86,7 @@ void FunduMoto_Move(int32_t angle, float radius_norm) {
 	}
 
 	// +1 to avoid division by zero
-	const float relative_scale = angle * 1.f / (90 - angle + 1);
+	const float relative_scale = angle * 1.f / (180 - angle + 1);
 
 	uint32_t right_move, left_move;
 	if (relative_scale < 1.f) {
@@ -104,22 +105,22 @@ void FunduMoto_Move(int32_t angle, float radius_norm) {
 }
 
 static void FunduMoto_ProcessCommand() {
-	if (cmd_len == 0) {
+	if (rx_cmd_len == 0) {
 		return;
 	}
 	ResetInternalState();
-	switch (received_cmd[0]) {
+	switch (rx_cmd[0]) {
 	case 'M':  // Motor
-		// format: M<angle:3d>,<radius:.2f>
-		// angle in [-90, 90]
+		// format: M<angle:4d>,<radius:.2f>
+		// angle in [-180, 180]
 		// radius in [0, VELOCITY_AMPLITUDE]
-		if (cmd_len != 9 || received_cmd[4] != ARG_SEPARATOR) {
+		if (rx_cmd_len != 10 || rx_cmd[5] != ARG_SEPARATOR) {
 			// invalid packet
 			return;
 		}
-		char angle_str[4] = { received_cmd[1], received_cmd[2], received_cmd[3] };
+		char angle_str[4] = { rx_cmd[1], rx_cmd[2], rx_cmd[3], rx_cmd[4] };
 		int32_t angle = atoi(angle_str);
-		float radius_norm = atof((char*) &received_cmd[5]);
+		float radius_norm = atof((char*) &rx_cmd[6]);
 		FunduMoto_Move(angle, radius_norm);
 		break;
 	case 'B':  // Buzzer
@@ -128,11 +129,11 @@ static void FunduMoto_ProcessCommand() {
 	case 'S':  // Servo
 		// format: S<angle:3d>
 		// angle in [-90, 90]
-		if (cmd_len != 4) {
+		if (rx_cmd_len != 4) {
 			// invalid packet
 			return;
 		}
-		m_servo_angle = atoi((char*) &received_cmd[1]);
+		m_servo_angle = atoi((char*) &rx_cmd[1]);
 		if (m_servo_angle > 90) {
 			m_servo_angle = 90;
 		} else if (m_servo_angle < -90) {
@@ -143,23 +144,23 @@ static void FunduMoto_ProcessCommand() {
 }
 
 void FunduMoto_Update() {
-	uint32_t rx_count = RingBuffer_DMA_Count(&rx_buf);
+	uint32_t rx_count = RingBuffer_DMA_Count(&rx_buf_dma);
 	/* Process each byte individually */
 	while (rx_count--) {
 		/* Read out one byte from RingBuffer */
-		uint8_t b = RingBuffer_DMA_GetByte(&rx_buf);
+		uint8_t b = RingBuffer_DMA_GetByte(&rx_buf_dma);
 		switch (b) {
 		case '\r':
 			// ignore \r
 			break;
 		case '\n':
 			/* Terminate string with \0 and process the command. */
-			received_cmd[cmd_len] = '\0';
+			rx_cmd[rx_cmd_len] = '\0';
 			FunduMoto_ProcessCommand();
-			cmd_len = 0U;
+			rx_cmd_len = 0U;
 			break;
 		default:
-			received_cmd[cmd_len++] = b;
+			rx_cmd[rx_cmd_len++] = b;
 			break;
 		}
 	}
