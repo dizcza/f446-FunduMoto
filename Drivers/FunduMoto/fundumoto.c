@@ -33,10 +33,14 @@ uint8_t tx[32];
 uint8_t rx_cmd[32];
 uint32_t rx_cmd_len = 0U;
 
-static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE];
+static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE_MAX];
 static uint32_t m_angular_dist_events = 0U;
 static volatile int32_t m_servo_angle = 0;
 static SonarVector m_last_sonar_vec;
+
+static uint32_t m_sonar_max_dist = 400;
+static uint32_t m_sonar_tolerance = 1;
+static uint32_t m_sonar_median_filter_size = 5;
 
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm);
 static void FunduMoto_ProcessCommand();
@@ -140,6 +144,35 @@ static void FunduMoto_ProcessCommand() {
 			m_servo_angle = -90;
 		}
 		break;
+	case 'D':  // set sonar max Dist, cm
+		// format: D<dist:3d>
+		if (rx_cmd_len != 4) {
+			// invalid packet;
+			return;
+		}
+		m_sonar_max_dist = atoi((char*) &rx_cmd[1]);
+		break;
+	case 'T':  // set sonar Tolerance, cm
+		// format: T<tol:1d>
+		if (rx_cmd_len != 2) {
+			// invalid packet
+			return;
+		}
+		m_sonar_tolerance = atoi((char*) &rx_cmd[1]);
+		break;
+	case 'F':  // set sonar median Filter size
+		// format: F<size:1d>
+		if (rx_cmd_len != 2) {
+			// invalid packet
+			return;
+		}
+		m_sonar_median_filter_size = atoi((char*) &rx_cmd[1]);
+		if (m_sonar_median_filter_size < 1) {
+			m_sonar_median_filter_size = 1;
+		} else if (m_sonar_median_filter_size > SONAR_MEDIAN_FILTER_SIZE_MAX) {
+			m_sonar_median_filter_size = SONAR_MEDIAN_FILTER_SIZE_MAX;
+		}
+		break;
 	}
 }
 
@@ -175,15 +208,19 @@ int ServoVector_Comparator(const void *a, const void *b) {
 }
 
 int8_t GetFilteredSonarVector(SonarVector *vec_filtered) {
-	if (m_angular_dist_events < SONAR_MEDIAN_FILTER_SIZE) {
+	if (m_sonar_median_filter_size < 1) {
+		// invalid filter size
+		return 1;
+	}
+	if (m_angular_dist_events < m_sonar_median_filter_size) {
 		// not enough points
 		return 1;
 	}
-	SonarVector vec_sorted[SONAR_MEDIAN_FILTER_SIZE];
+	SonarVector vec_sorted[m_sonar_median_filter_size];
 	memcpy(vec_sorted, m_sonar_vec, sizeof(vec_sorted));
-	qsort(vec_sorted, SONAR_MEDIAN_FILTER_SIZE, sizeof(SonarVector),
+	qsort(vec_sorted, m_sonar_median_filter_size, sizeof(SonarVector),
 			ServoVector_Comparator);
-	int32_t median_id = (SONAR_MEDIAN_FILTER_SIZE - 1U) / 2U;
+	uint32_t median_id = m_sonar_median_filter_size >> 1U;
 	vec_filtered->servo_angle = vec_sorted[median_id].servo_angle;
 	vec_filtered->sonar_dist = vec_sorted[median_id].sonar_dist;
 	return 0;
@@ -193,11 +230,11 @@ void UpdateSonarDist() {
 	uint32_t dist_cm = FunduMoto_SonarEchoUSec / SONAR_SOUND_SPEED_INV;
 	int32_t servo_angle = (((int32_t) htim3.Instance->CCR2) - SERVO_90_DC)
 			/ SERVO_STEP_DC;
-	if (dist_cm > SONAR_MAX_DIST) {
-		dist_cm = SONAR_MAX_DIST;
+	if (dist_cm > m_sonar_max_dist) {
+		dist_cm = m_sonar_max_dist;
 	}
 	SonarVector *angular_dist = &m_sonar_vec[m_angular_dist_events
-			% SONAR_MEDIAN_FILTER_SIZE];
+			% m_sonar_median_filter_size];
 	angular_dist->servo_angle = servo_angle;
 	angular_dist->sonar_dist = dist_cm;
 	m_angular_dist_events++;
@@ -209,7 +246,6 @@ void CopySonarVector(SonarVector *dest, const SonarVector *src) {
 	dest->sonar_dist = src->sonar_dist;
 }
 
-
 static int8_t IsSonarVectorChanged(const SonarVector *vec) {
 	if (vec->servo_angle != m_last_sonar_vec.servo_angle) {
 		CopySonarVector(&m_last_sonar_vec, vec);
@@ -219,7 +255,7 @@ static int8_t IsSonarVectorChanged(const SonarVector *vec) {
 	if (dist_diff < 0) {
 		dist_diff = -dist_diff;
 	}
-	if (dist_diff > SONAR_TOLERANCE) {
+	if (dist_diff > m_sonar_tolerance) {
 		CopySonarVector(&m_last_sonar_vec, vec);
 		return 1;
 	}
@@ -239,8 +275,9 @@ void FunduMoto_SendSonarDist() {
 			return;
 		}
 
-		float dist_norm = vec_median.sonar_dist / (float) SONAR_MAX_DIST;
-		sprintf((char *) tx, "S%03ld,%.3f\r\n", vec_median.servo_angle, dist_norm);
+		float dist_norm = vec_median.sonar_dist / (float) m_sonar_max_dist;
+		sprintf((char *) tx, "S%03ld,%.3f\r\n", vec_median.servo_angle,
+				dist_norm);
 		HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
 	}
 }

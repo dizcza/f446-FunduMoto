@@ -19,6 +19,7 @@
 #define SERVO_90_DC 1500
 #define SERVO_STEP_DC 10
 #define ARG_SEPARATOR ','
+#define SONAR_MEDIAN_FILTER_SIZE_MAX 10
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */
@@ -28,10 +29,6 @@
 // Value between 0.0 and 1.0.
 // Full DC is defined by htim4.Period.
 #define DUTY_CYCLE_MIN_NORM (0.11f)
-
-#define SONAR_MAX_DIST 400  // centimeters
-#define SONAR_TOLERANCE 1
-#define SONAR_MEDIAN_FILTER_SIZE 5
 
 /* Array for DMA to save Rx bytes */
 #define RINGBUF_RX_SIZE 256
