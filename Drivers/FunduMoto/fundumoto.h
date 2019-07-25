@@ -23,7 +23,7 @@
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */
-#define FUNDU_MOTOR_MOVE_PERIOD (0.5f)
+#define MOTOR_MOVE_PERIOD (0.5f)
 
 // Min normalized timer DC that drives the motor.
 // Value between 0.0 and 1.0.

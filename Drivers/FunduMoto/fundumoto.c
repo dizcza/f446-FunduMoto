@@ -104,7 +104,7 @@ void FunduMoto_Move(int32_t angle, float radius_norm) {
 	motorB.duty_cycle = right_move;
 	FunduMoto_SetDirection(&motorA, direction);
 	FunduMoto_SetDirection(&motorB, direction);
-	FunduMoto_MotorCycles = (uint32_t) (FUNDU_MOTOR_MOVE_PERIOD
+	FunduMoto_MotorCycles = (uint32_t) (MOTOR_MOVE_PERIOD
 			* htim4.Init.Period);
 }
 
@@ -128,7 +128,13 @@ static void FunduMoto_ProcessCommand() {
 		FunduMoto_Move(angle, radius_norm);
 		break;
 	case 'B':  // Buzzer
-		// TODO implement buzzer
+		// format: B<state:1d>
+		if (rx_cmd_len != 2) {
+			// invalid packet
+			return;
+		}
+		GPIO_PinState buzzer_state = (GPIO_PinState) (rx_cmd[1] - '0');
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, buzzer_state);
 		break;
 	case 'S':  // Servo
 		// format: S<angle:3d>
