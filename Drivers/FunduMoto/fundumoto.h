@@ -62,7 +62,7 @@ __STATIC_INLINE void FunduMoto_SetDirection(const Fundu_Motor *motor, MotorDirec
 void FunduMoto_Init();
 void FunduMoto_Update();
 void FunduMoto_SendSonarDist();
-void FunduMoto_Move(int32_t angle, float radius_norm);
+void FunduMoto_Move(int32_t direction_angle, float velocity);
 int32_t FunduMoto_GetServoAngle();
 
 

@@ -1,6 +1,6 @@
 # FunduMotoJoystick
 
-FunduMoto schield driver for Nucleo F446RE board. Based on HAL.
+FunduMoto L298P shield motor driver for Nucleo F446RE board. Based on HAL.
 
 FunduMoto communicates with the [client app](https://github.com/dizcza/FunduMotoJoystick) via Bluetooth UART4 with Periph-to-memory RX DMA (circular mode, RingBuffer).
 
@@ -42,6 +42,20 @@ while (1) {
 `FunduMoto_Update()` pulls, parses, and evaluates received Bluetooth commands.
 
 `FunduMoto_SendSonarDist()` filters and sends sonar distance, read at interrupts.
+
+### Bluetooth commands
+
+You can also use Bluetooth terminal to receive commands and send messages.
+
+- RX:
+    * Motor `M<angle:4d>,<velocity:.2f>`: set vehicle's velocity amplitude and angle for the next `FunduMoto_MotorCycles` cycles (25 ms).
+    * Servo `S<angle:3d>`: set servo angle.
+    * Buzzer `B<state:1d>`: on/off buzzer.
+    * Dist `D<dist:3d>`: set sonar max dist in cm.
+    * Tolerance `T<tol:1d>`: set sonar tolerance in cm.
+    * Filter `F<size:1d>`: set sonar median filter size.
+- TX:
+    * Sonar `S<angle:3d>,<dist:.3f>`: send current servo angle and normalized sonar dist.
 
 ### Difference with Arduino pinout connection
 

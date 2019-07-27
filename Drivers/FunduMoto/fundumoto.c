@@ -82,15 +82,15 @@ static uint32_t FunduMoto_GetDutyCycle(float radius_norm) {
 	return dc_min + radius_norm * (htim4.Init.Period - dc_min);
 }
 
-void FunduMoto_Move(int32_t angle, float radius_norm) {
-	const uint32_t radius_dc = FunduMoto_GetDutyCycle(radius_norm);
-	MotorDirection direction = (MotorDirection) (angle > 0);
-	if (angle < 0) {
-		angle = -angle;
+void FunduMoto_Move(int32_t direction_angle, float velocity) {
+	const uint32_t radius_dc = FunduMoto_GetDutyCycle(velocity);
+	MotorDirection direction = (MotorDirection) (direction_angle > 0);
+	if (direction_angle < 0) {
+		direction_angle = -direction_angle;
 	}
 
 	// +1 to avoid division by zero
-	const float relative_scale = angle * 1.f / (180 - angle + 1);
+	const float relative_scale = direction_angle * 1.f / (180 - direction_angle + 1);
 
 	uint32_t right_move, left_move;
 	if (relative_scale < 1.f) {
@@ -115,17 +115,17 @@ static void FunduMoto_ProcessCommand() {
 	ResetInternalState();
 	switch (rx_cmd[0]) {
 	case 'M':  // Motor
-		// format: M<angle:4d>,<radius:.2f>
+		// format: M<angle:4d>,<velocity:.2f>
 		// angle in [-180, 180]
-		// radius in [0, VELOCITY_AMPLITUDE]
+		// velocity in [0, 1]
 		if (rx_cmd_len != 10 || rx_cmd[5] != ARG_SEPARATOR) {
 			// invalid packet
 			return;
 		}
 		char angle_str[4] = { rx_cmd[1], rx_cmd[2], rx_cmd[3], rx_cmd[4] };
 		int32_t angle = atoi(angle_str);
-		float radius_norm = atof((char*) &rx_cmd[6]);
-		FunduMoto_Move(angle, radius_norm);
+		float velocity = atof((char*) &rx_cmd[6]);
+		FunduMoto_Move(angle, velocity);
 		break;
 	case 'B':  // Buzzer
 		// format: B<state:1d>
