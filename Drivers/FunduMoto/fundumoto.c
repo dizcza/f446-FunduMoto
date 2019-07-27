@@ -52,7 +52,7 @@ void FunduMoto_Init() {
 	HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1); // motorA (handles interrupts for both motors)
 	HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);    // motorB
 	HAL_TIM_PWM_Start_IT(&htim3, TIM_CHANNEL_2);  // servo
-	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);     // sonar
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);     // sonar
 
 	// Init default PWM values
 	htim1.Instance->CCR2 = SONAR_TRIGGER_BURST_TICKS;
