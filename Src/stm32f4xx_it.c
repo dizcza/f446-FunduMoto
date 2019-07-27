@@ -244,16 +244,6 @@ void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
 	htim3.Instance->CCR2 = SERVO_90_DC + FunduMoto_GetServoAngle() * SERVO_STEP_DC;
-//	angle += delta;
-//	if (angle < -89 || angle > 89) {
-//		delta = -delta;
-//	}
-//	if (angle > 90) {
-//		angle = 90;
-//	} else if (angle < -90) {
-//		angle = -90;
-//	}
-//	htim3.Instance->CCR2 = 1500 + angle * 10;
 
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
