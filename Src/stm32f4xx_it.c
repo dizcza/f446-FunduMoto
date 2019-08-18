@@ -67,7 +67,7 @@ extern volatile uint32_t FunduMoto_SonarEchoUSec;
 /* USER CODE END EV */
 
 /******************************************************************************/
-/*           Cortex-M4 Processor Interruption and Exception Handlers          */ 
+/*           Cortex-M4 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
 /**
   * @brief This function handles Non maskable interrupt.
@@ -222,6 +222,7 @@ void DMA1_Stream2_IRQHandler(void)
 void EXTI9_5_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI9_5_IRQn 0 */
+	// PA8 - Trig, PA9 - Echo (Interrupt)
 	uint32_t tick = htim1.Instance->CNT;
 	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) {
 		m_sonar_echo_triggered = tick;

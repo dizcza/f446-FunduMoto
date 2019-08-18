@@ -1,6 +1,6 @@
 # FunduMotoJoystick
 
-FunduMoto L298P shield motor driver for Nucleo F446RE board. Based on HAL.
+[FunduMoto L298P shield](http://www.mantech.co.za/Datasheets/Products/EX029.pdf) motor driver for Nucleo F446RE board. Based on HAL.
 
 FunduMoto communicates with the [client app](https://github.com/dizcza/FunduMotoJoystick) via Bluetooth UART4 with Periph-to-memory RX DMA (circular mode, RingBuffer).
 
@@ -43,19 +43,15 @@ while (1) {
 
 `FunduMoto_SendSonarDist()` filters and sends sonar distance, read at interrupts.
 
-### Bluetooth commands
+### Bluetooth RX commands
 
-You can also use Bluetooth terminal to receive commands and send messages.
-
-- RX:
-    * Motor `M<angle:4d>,<velocity:.2f>`: set vehicle's velocity amplitude and angle for the next `FunduMoto_MotorCycles` cycles (25 ms).
-    * Servo `S<angle:3d>`: set servo angle.
-    * Buzzer `B<state:1d>`: on/off buzzer.
-    * Dist `D<dist:3d>`: set sonar max dist in cm.
-    * Tolerance `T<tol:1d>`: set sonar tolerance in cm.
-    * Filter `F<size:1d>`: set sonar median filter size.
-- TX:
-    * Sonar `S<angle:3d>,<dist:.3f>`: send current servo angle and normalized sonar dist.
+You can also use Bluetooth terminal to receive commands.
+* Motor `M<angle:4d>,<velocity:.2f>`: set vehicle's velocity amplitude and angle for the next `FunduMoto_MotorCycles` cycles (25 ms).
+* Servo `S<angle:3d>`: set servo angle.
+* Buzzer `B<state:1d>`: on/off buzzer.
+* Dist `D<dist:3d>`: set sonar max dist in cm (default is 400 cm).
+* Tolerance `T<tol:1d>`: set sonar tolerance in cm (default is 1 cm).
+* Filter `F<size:1d>`: set sonar median filter size (default is 3).
 
 ### Difference with Arduino pinout connection
 
@@ -63,6 +59,6 @@ FunduMoto schield connects Bluetooth to D1 and D0, which are used by USART2 debu
 
 ### Possible issues
 
-1. Wrong motor(s) direction. Just switch '+' with '-' pins.
-2. Sonar does not work realiably. Onboard yellow connector pinns wiring is weak and you might loose the connection with the sonar when servo rotates and pulls the wire. Better to connect Trig and Echo pins directly to D7 and D8 pins.
+1. Wrong motor(s) direction. Just switch '+' and '-' pins.
+2. Sonar does not work realiably. Onboard yellow connector pins wiring is weak and you might loose the connection with the sonar when servo rotates and pulls the wire. Better to connect Trig and Echo pins directly to D7 and D8 pins.
 

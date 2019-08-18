@@ -3,4 +3,6 @@ Debug/
 .mxproject
 .project
 .settings/
+*.launch
+*generate_report.txt
 
