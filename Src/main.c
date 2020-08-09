@@ -24,6 +24,7 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "app_x-cube-ai.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -99,8 +100,12 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM14_Init();
   MX_CRC_Init();
+  MX_X_CUBE_AI_Init();
   /* USER CODE BEGIN 2 */
   FunduMoto_Init();
+#ifndef FUNDUMOTO_JOYSTICK_MODE
+  Gym_InitNetwork();
+#endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -112,6 +117,7 @@ int main(void)
 
     /* USER CODE END WHILE */
 
+  MX_X_CUBE_AI_Process();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

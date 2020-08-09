@@ -19,6 +19,8 @@
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */
+//#define FUNDUMOTO_JOYSTICK_MODE
+
 #define MOTOR_MOVE_PERIOD (0.5f)
 
 // Min normalized timer DC that drives the motor.
@@ -36,6 +38,7 @@
 #include <stdint.h>
 #include "stm32f446xx.h"
 #include "tim.h"
+#include "gym.h"
 
 
 typedef struct Fundu_Motor {
@@ -67,6 +70,7 @@ void FunduMoto_Init();
 void FunduMoto_ReadUART();
 void FunduMoto_Update();
 void FunduMoto_UserMove(int32_t direction_angle, float velocity);
+void FunduMoto_GymMove(const Gym_Action* action);
 int32_t FunduMoto_GetServoAngle();
 
 

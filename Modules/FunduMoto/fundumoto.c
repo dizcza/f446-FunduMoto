@@ -43,6 +43,9 @@ static uint32_t m_sonar_max_dist = 400;
 static uint32_t m_sonar_tolerance = 1;
 static uint32_t m_sonar_median_filter_size = 5;
 
+// autonomous mode
+static int32_t m_servo_angle_step = GYM_SERVO_ANGLE_STEP;
+
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm);
 static void FunduMoto_ProcessCommand();
 static int8_t IsSonarVectorChanged(const SonarVector *vec);
@@ -123,6 +126,12 @@ void FunduMoto_UserMove(int32_t direction_angle, float velocity) {
 	motorB.duty_cycle = right_move;
 	FunduMoto_SetDirection(&motorA, direction);
 	FunduMoto_SetDirection(&motorB, direction);
+	FunduMoto_MotorCycles =	(uint32_t) (MOTOR_MOVE_PERIOD * htim4.Init.Period);
+}
+
+void FunduMoto_GymMove(const Gym_Action* action) {
+	FunduMoto_ChangeWheelVelocity(&motorA, action->left_wheel_vel);
+	FunduMoto_ChangeWheelVelocity(&motorB, action->right_wheel_vel);
 	FunduMoto_MotorCycles =	(uint32_t) (MOTOR_MOVE_PERIOD * htim4.Init.Period);
 }
 
@@ -232,6 +241,13 @@ void FunduMoto_ReadUART() {
 }
 
 int32_t FunduMoto_GetServoAngle() {
+#ifndef FUNDUMOTO_JOYSTICK_MODE
+	m_servo_angle += m_servo_angle_step;
+	if (m_servo_angle <= -GYM_SERVO_ANGLE_MAX || m_servo_angle >= GYM_SERVO_ANGLE_MAX) {
+		m_servo_angle_step *= -1;
+	}
+	ClampServoAngle(-GYM_SERVO_ANGLE_MAX, GYM_SERVO_ANGLE_MAX);
+#endif
 	return m_servo_angle;
 }
 
@@ -296,17 +312,38 @@ void ReadSonarDist() {
 	FunduMoto_SonarEchoUSec = SONAR_ECHO_USEC_IDLE;
 }
 
+void Gym_Update(const SonarVector* vec) {
+	float servo_angle = (float) vec->servo_angle;  // [-30, 30]
+	servo_angle = (servo_angle + GYM_SERVO_ANGLE_MAX) / (2 * GYM_SERVO_ANGLE_MAX);  // [0, 1]
+	float dist_to_obstacle = vec->sonar_dist / GYM_SENSOR_DIST_MAX;
+	if (dist_to_obstacle > 1.f) {
+		dist_to_obstacle = 1.f;
+	}
+	Gym_Observation observation = {
+			.dist_to_obstacle = dist_to_obstacle,
+			.servo_angle = servo_angle,
+	};
+	Gym_Action action;
+	Gym_Infer(&observation, &action);
+	FunduMoto_GymMove(&action);
+}
+
 
 void FunduMoto_Update() {
 	if (FunduMoto_SonarEchoUSec == SONAR_ECHO_USEC_IDLE) {
 		return;
 	}
+
 	ReadSonarDist();
 
 	SonarVector vec_median;
 	if (GetFilteredSonarVector(&vec_median) != 0) {
 		return;
 	}
+
+#ifndef FUNDUMOTO_JOYSTICK_MODE
+	Gym_Update(&vec_median);
+#endif
 
 	if (!IsSonarVectorChanged(&vec_median)) {
 		return;
