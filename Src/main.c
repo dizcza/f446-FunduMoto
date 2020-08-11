@@ -104,13 +104,12 @@ int main(void)
   MX_X_CUBE_AI_Init();
   /* USER CODE BEGIN 2 */
   FunduMoto_Init();
-#ifndef FUNDUMOTO_JOYSTICK_MODE
+
   ai_error err = Gym_InitNetwork();
   assert_param(err.code == AI_ERROR_CODE_NONE);
   Gym_LogNetworkInfo();
 
   Test_GymInfer();
-#endif
   /* USER CODE END 2 */
 
   /* Infinite loop */

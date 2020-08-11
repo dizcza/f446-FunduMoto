@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <sys/_stdint.h>
 
+#include "stm32f4xx_hal.h"
 #include "gym.h"
 
 #define SINGLE_PASS_BATCH_SIZE 1
@@ -23,10 +24,16 @@ static ai_handle m_network = AI_HANDLE_NULL;
 static ai_buffer ai_input[AI_NNACTOR_IN_NUM] = AI_NNACTOR_IN;
 static ai_buffer ai_output[AI_NNACTOR_OUT_NUM] = AI_NNACTOR_OUT;
 
-
 /* Global buffer to handle the activations data buffer - R/W data */
 AI_ALIGNED(4)
 static ai_u8 m_activations[AI_NNACTOR_DATA_ACTIVATIONS_SIZE];
+
+
+static void assert_in_valid_range(float val) {
+	// NN requires input to be in [0, 1] range.
+	assert_param(val >= 0.f && val <= 1.f);
+}
+
 
 ai_error Gym_InitNetwork() {
 	ai_error err;
@@ -70,6 +77,9 @@ void Gym_LogError(ai_error err, char* title) {
 }
 
 ai_error Gym_Infer(const Gym_Observation* observation, Gym_Action* action) {
+	assert_in_valid_range(observation->dist_to_obstacle);
+	assert_in_valid_range(observation->servo_angle);
+
 	m_input_data[0] = observation->dist_to_obstacle;
 	m_input_data[1] = observation->servo_angle;
 

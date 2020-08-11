@@ -19,8 +19,6 @@
 /* ---- END DO NOT MODIFY ---- */
 
 /* -- MODIFIABLE PARAMETERS -- */
-//#define FUNDUMOTO_JOYSTICK_MODE
-
 #define MOTOR_MOVE_PERIOD (0.5f)
 
 // Min normalized timer DC that drives the motor.
@@ -58,6 +56,10 @@ typedef struct SonarVector {
 	int32_t sonar_dist;
 } SonarVector;
 
+typedef enum {
+	FUNDU_MODE_JOYSTICK = 0,
+	FUNDU_MODE_AUTONOMOUS
+} FunduMode;
 
 extern Fundu_Motor motorA;
 extern Fundu_Motor motorB;
@@ -72,6 +74,6 @@ void FunduMoto_Update();
 void FunduMoto_UserMove(int32_t direction_angle, float velocity);
 void FunduMoto_GymMove(const Gym_Action* action);
 int32_t FunduMoto_GetServoAngle();
-
+void FunduMoto_SetMode(FunduMode mode);
 
 #endif /* FUNDUMOTO_H_ */

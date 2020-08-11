@@ -45,6 +45,7 @@ static uint32_t m_sonar_median_filter_size = 5;
 
 // autonomous mode
 static int32_t m_servo_angle_step = GYM_SERVO_ANGLE_STEP;
+static FunduMode m_mode = FUNDU_MODE_JOYSTICK;
 
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm);
 static void FunduMoto_ProcessCommand();
@@ -153,6 +154,11 @@ static void FunduMoto_ProcessCommand() {
 	}
 	ResetInternalState();
 	switch (rx_cmd[0]) {
+	case 'A':  // [A]utonomous
+		;
+		FunduMode mode = (FunduMode) atoi(rx_cmd + 1);
+		FunduMoto_SetMode(mode);
+		break;
 	case 'M':  // [M]otor
 		// format: M<angle:4d>,<velocity:.2f>
 		// angle in [-180, 180]
@@ -241,13 +247,13 @@ void FunduMoto_ReadUART() {
 }
 
 int32_t FunduMoto_GetServoAngle() {
-#ifndef FUNDUMOTO_JOYSTICK_MODE
-	m_servo_angle += m_servo_angle_step;
-	if (m_servo_angle <= -GYM_SERVO_ANGLE_MAX || m_servo_angle >= GYM_SERVO_ANGLE_MAX) {
-		m_servo_angle_step *= -1;
+	if (m_mode == FUNDU_MODE_AUTONOMOUS) {
+		m_servo_angle += m_servo_angle_step;
+		if (m_servo_angle <= -GYM_SERVO_ANGLE_MAX || m_servo_angle >= GYM_SERVO_ANGLE_MAX) {
+			m_servo_angle_step *= -1;
+		}
+		ClampServoAngle(-GYM_SERVO_ANGLE_MAX, GYM_SERVO_ANGLE_MAX);
 	}
-	ClampServoAngle(-GYM_SERVO_ANGLE_MAX, GYM_SERVO_ANGLE_MAX);
-#endif
 	return m_servo_angle;
 }
 
@@ -341,13 +347,18 @@ void FunduMoto_Update() {
 		return;
 	}
 
-#ifndef FUNDUMOTO_JOYSTICK_MODE
-	Gym_Update(&vec_median);
-#endif
+	if (m_mode == FUNDU_MODE_AUTONOMOUS) {
+		Gym_Update(&vec_median);
+	}
 
 	if (!IsSonarVectorChanged(&vec_median)) {
 		return;
 	}
 
 	SendSonarVec(&vec_median, 0U);
+}
+
+void FunduMoto_SetMode(FunduMode mode) {
+	m_mode = mode;
+	FunduMoto_MotorCycles = 0;
 }
