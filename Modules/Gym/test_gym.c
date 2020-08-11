@@ -16,34 +16,33 @@
 #include "gym.h"
 
 
-static uint8_t _is_close(float val, const float val_target) {
-	val -= val_target;
-	if (val < 0) {
-		val = -val;
-	}
-	uint8_t res = (uint8_t) (val < TEST_GYM_EPS);
-	return res;
+static void assert_isclose(float val, const float val_target) {
+	assert_param(fabsf(val - val_target) < TEST_GYM_EPS);
 }
 
 
 void Test_GymMove() {
 	Gym_Action action;
 
+	// forward
 	action.left_wheel_vel = 1.f;
 	action.right_wheel_vel = 1.f;
 	FunduMoto_GymMove(&action);
 	HAL_Delay(1000);
 
+	// backward
 	action.left_wheel_vel = -1.f;
 	action.right_wheel_vel = -1.f;
 	FunduMoto_GymMove(&action);
 	HAL_Delay(1000);
 
+	// turn left
 	action.left_wheel_vel = -1.f;
 	action.right_wheel_vel = 1.f;
 	FunduMoto_GymMove(&action);
 	HAL_Delay(1000);
 
+	// turn right
 	action.left_wheel_vel = 1.f;
 	action.right_wheel_vel = -1.f;
 	FunduMoto_GymMove(&action);
@@ -57,21 +56,21 @@ void Test_GymMove() {
 
 
 void Test_GymInfer() {
-	// Current nnactor always predict 1.0 for the right wheel.
+	// Current nnactor always predicts 1.0 for the right (second) wheel.
 	Gym_Observation observation;
+	observation.servo_angle = 0.f;
 	Gym_Action action;
 	ai_error inference_err;
-	observation.servo_angle = 0.f;
 
-	observation.dist_to_obstacle = 0.f;
+	observation.dist_to_obstacle = 0.0001f;  // small dist
 	inference_err = Gym_Infer(&observation, &action);
-	assert_param(action.left_wheel_vel < -0.969);
-	assert_param(_is_close(action.right_wheel_vel, 1.f));
+	assert_param(action.left_wheel_vel < -0.95f);
+	assert_isclose(action.right_wheel_vel, 1.f);
 	assert_param(inference_err.type == AI_ERROR_NONE);
 
-	observation.dist_to_obstacle = 1.f;
+	observation.dist_to_obstacle = 1.0f;
 	inference_err = Gym_Infer(&observation, &action);
-	assert_param(_is_close(action.left_wheel_vel, 1.f));
-	assert_param(_is_close(action.right_wheel_vel, 1.f));
+	assert_isclose(action.left_wheel_vel, 1.f);
+	assert_isclose(action.right_wheel_vel, 1.f);
 	assert_param(inference_err.type == AI_ERROR_NONE);
 }
