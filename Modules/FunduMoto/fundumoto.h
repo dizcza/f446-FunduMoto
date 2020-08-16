@@ -28,8 +28,9 @@
 // Full DC is defined by htim4.Period.
 #define DUTY_CYCLE_MIN_NORM (0.11f)
 
-/* Array for DMA to save Rx bytes */
-#define RINGBUF_RX_SIZE 256
+/* Rx and Tx buffers size */
+#define FUNDUMOTO_RX_SIZE 256   // ring buffer
+#define FUNDUMOTO_TX_SIZE 256   // normal
 /* ---- END MODIFIABLE ------- */
 
 
@@ -75,5 +76,9 @@ void FunduMoto_UserMove(int32_t direction_angle, float velocity);
 void FunduMoto_GymMove(const Gym_Action* action);
 int32_t FunduMoto_GetServoAngle();
 void FunduMoto_SetMode(FunduMode mode);
+void FunduMoto_Beep(GPIO_PinState state);
+
+// performance
+float FunduMoto_GetFPS();
 
 #endif /* FUNDUMOTO_H_ */

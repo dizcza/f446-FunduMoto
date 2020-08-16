@@ -26,13 +26,14 @@ Fundu_Motor motorB = { .htim = &htim14, .direction_gpio = GPIOA,
 volatile int32_t FunduMoto_MotorCycles = 0;
 volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
-RingBuffer_DMA rx_buf_dma;
-uint8_t rx[RINGBUF_RX_SIZE];
-uint8_t tx[32];
+static RingBuffer_DMA ringbuf_rx;
+static uint8_t rx_buf[FUNDUMOTO_RX_SIZE];
+
+static uint8_t tx_buf[FUNDUMOTO_TX_SIZE];
+static uint32_t tx_buf_count = 0;
 
 /* Array for received commands */
-uint8_t rx_cmd[32];
-uint32_t rx_cmd_len = 0U;
+static uint8_t rx_cmd[32];
 
 static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE_MAX];
 static uint32_t m_angular_dist_events = 0U;
@@ -52,7 +53,7 @@ static void FunduMoto_ProcessCommand();
 static int8_t IsSonarVectorChanged(const SonarVector *vec);
 static void ResetInternalState();
 static void CopySonarVector(SonarVector *dest, const SonarVector *src);
-static HAL_StatusTypeDef SendSonarVec(const SonarVector *vec, const uint8_t is_target);
+static void TXWriteSonarVec(const SonarVector *vec, const uint8_t is_target);
 static void FunduMoto_ChangeWheelVelocity(Fundu_Motor* motor, float velocity);
 
 __STATIC_INLINE void ClampServoAngle(const int32_t left, const int32_t right) {
@@ -68,11 +69,22 @@ static void ResetInternalState() {
 	m_last_sonar_vec.sonar_dist = 0;
 }
 
-static HAL_StatusTypeDef SendSonarVec(const SonarVector *vec, const uint8_t is_target) {
+static void TXWriteSonarVec(const SonarVector *vec, const uint8_t is_target) {
 	float dist_norm = vec->sonar_dist / (float) m_sonar_max_dist;
-	sprintf((char *) tx, "S%d,%03ld,%.3f\r\n", is_target, vec->servo_angle, dist_norm);
-	return HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
+	tx_buf_count += sprintf((char *) tx_buf + tx_buf_count, "S%d,%03ld,%.3f\r\n",
+			is_target, vec->servo_angle, dist_norm);
 }
+
+static HAL_StatusTypeDef TXSend() {
+	HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&huart4, tx_buf, tx_buf_count);
+	tx_buf_count = 0;
+	return status;
+}
+
+static void TXWriteFPS(const float fps) {
+	tx_buf_count += sprintf((char *) tx_buf + tx_buf_count, "F%.2f\r\n", fps);
+}
+
 
 void FunduMoto_Init() {
 	assert_param(SONAR_TRIGGER_BURST_TICKS * SONAR_TICK_USEC == 10);
@@ -86,9 +98,9 @@ void FunduMoto_Init() {
 	htim3.Instance->CCR2 = SERVO_90_DC;
 
 	/* Init RingBuffer_DMA object */
-	RingBuffer_DMA_Init(&rx_buf_dma, huart4.hdmarx, rx, RINGBUF_RX_SIZE);
+	RingBuffer_DMA_Init(&ringbuf_rx, huart4.hdmarx, rx_buf, FUNDUMOTO_RX_SIZE);
 	/* Start UART4 DMA Reception */
-	HAL_UART_Receive_DMA(&huart4, rx, RINGBUF_RX_SIZE);
+	HAL_UART_Receive_DMA(&huart4, rx_buf, FUNDUMOTO_RX_SIZE);
 
 	ResetInternalState();
 }
@@ -148,7 +160,7 @@ static void FunduMoto_ChangeWheelVelocity(Fundu_Motor* motor, float velocity) {
 }
 
 
-static void FunduMoto_ProcessCommand() {
+static void FunduMoto_ProcessCommand(const uint32_t rx_cmd_len) {
 	if (rx_cmd_len == 0) {
 		return;
 	}
@@ -156,7 +168,7 @@ static void FunduMoto_ProcessCommand() {
 	switch (rx_cmd[0]) {
 	case 'A':  // [A]utonomous
 		;
-		FunduMode mode = (FunduMode) atoi(rx_cmd + 1);
+		FunduMode mode = (FunduMode) atoi((const char*)rx_cmd + 1);
 		FunduMoto_SetMode(mode);
 		break;
 	case 'M':  // [M]otor
@@ -179,7 +191,7 @@ static void FunduMoto_ProcessCommand() {
 			return;
 		}
 		GPIO_PinState buzzer_state = (GPIO_PinState) (rx_cmd[1] - '0');
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, buzzer_state);
+		FunduMoto_Beep(buzzer_state);
 		break;
 	case 'S':  // [S]ervo
 		// format: S<angle:3d>
@@ -224,11 +236,12 @@ static void FunduMoto_ProcessCommand() {
 }
 
 void FunduMoto_ReadUART() {
-	uint32_t rx_count = RingBuffer_DMA_Count(&rx_buf_dma);
+	uint32_t rx_count = RingBuffer_DMA_Count(&ringbuf_rx);
+	uint32_t rx_cmd_len = 0U;
 	/* Process each byte individually */
 	while (rx_count--) {
 		/* Read out one byte from RingBuffer */
-		uint8_t b = RingBuffer_DMA_GetByte(&rx_buf_dma);
+		uint8_t b = RingBuffer_DMA_GetByte(&ringbuf_rx);
 		switch (b) {
 		case '\r':
 			// ignore \r
@@ -236,7 +249,7 @@ void FunduMoto_ReadUART() {
 		case '\n':
 			/* Terminate string with \0 and process the command. */
 			rx_cmd[rx_cmd_len] = '\0';
-			FunduMoto_ProcessCommand();
+			FunduMoto_ProcessCommand(rx_cmd_len);
 			rx_cmd_len = 0U;
 			break;
 		default:
@@ -355,10 +368,18 @@ void FunduMoto_Update() {
 		return;
 	}
 
-	SendSonarVec(&vec_median, 0U);
+	TXWriteSonarVec(&vec_median, 0U);
+	TXWriteFPS(FunduMoto_GetFPS());
+
+	TXSend();
+
 }
 
 void FunduMoto_SetMode(FunduMode mode) {
 	m_mode = mode;
 	FunduMoto_MotorCycles = 0;
+}
+
+void FunduMoto_Beep(GPIO_PinState state) {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, state);
 }

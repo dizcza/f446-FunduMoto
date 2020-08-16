@@ -190,9 +190,12 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
 	while (1) {
-		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-		HAL_Delay(300);
+		FunduMoto_Beep(GPIO_PIN_SET);
+		HAL_Delay(10);
+		FunduMoto_Beep(GPIO_PIN_RESET);
+		HAL_Delay(990);
 	}
   /* USER CODE END Error_Handler_Debug */
 }
