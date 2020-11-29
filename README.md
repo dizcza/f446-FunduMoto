@@ -4,6 +4,8 @@
 
 FunduMoto communicates with the [client app](https://github.com/dizcza/FunduMotoJoystick) via Bluetooth UART4 with Periph-to-memory RX DMA (circular mode, RingBuffer).
 
+:point_right: For autonomous robot navigation, switch to [nn](https://github.com/dizcza/stm32f446-FunduMoto/tree/nn) branch.
+
 ![](screenshots/fundumoto.jpg)
 
 ### Pinout
@@ -34,14 +36,14 @@ HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);     // sonar
 FunduMoto_Init();
 
 while (1) {
-    FunduMoto_Update();
-    FunduMoto_SendSonarDist();
+	FunduMoto_ReadUART();
+	FunduMoto_Update();
 }
 ```
 
-`FunduMoto_Update()` pulls, parses, and evaluates received Bluetooth commands.
+`FunduMoto_ReadUART()` pulls, parses, and evaluates received Bluetooth commands.
 
-`FunduMoto_SendSonarDist()` filters and sends sonar distance, read at interrupts.
+`FunduMoto_Update()` filters and sends sonar distance, read at interrupts.
 
 ### Bluetooth RX commands
 
