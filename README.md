@@ -1,10 +1,16 @@
-# FunduMotoJoystick
+# Autonomous driving with FunduMoto shield
 
 [FunduMoto L298P shield](http://www.mantech.co.za/Datasheets/Products/EX029.pdf) motor driver for Nucleo F446RE board. Based on HAL.
 
 FunduMoto communicates with the [client app](https://github.com/dizcza/FunduMotoJoystick) via Bluetooth UART4 with Periph-to-memory RX DMA (circular mode, RingBuffer).
 
 ![](screenshots/fundumoto.jpg)
+
+### Neural Network
+
+A neural network drives the motors to constantly avoid obtacles. It's a DDPG-trained actor-critic model; the real environment is simulated in https://github.com/dizcza/gym-ultrasonic. The training script is [here](https://github.com/dizcza/gym-ultrasonic/blob/master/ddpg.py). The API is in [`gym.h`](https://github.com/dizcza/stm32f446-FunduMoto/blob/nn/Modules/Gym/gym.h), and the usage is shown in [`Gym_Update`](https://github.com/dizcza/stm32f446-FunduMoto/blob/06b22a97b0dcdca7108cb79d1b7bbe334396cfb5/Modules/FunduMoto/fundumoto.c#L315) function.
+
+(The rest of README follows the master branch.)
 
 ### Pinout
 
