@@ -1,8 +1,4 @@
 Debug/
-.cproject
-.mxproject
-.project
 .settings/
-*.launch
 *generate_report.txt
-
+*.log

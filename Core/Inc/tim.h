@@ -1,12 +1,12 @@
 /**
   ******************************************************************************
-  * File Name          : USART.h
-  * Description        : This file provides code for the configuration
-  *                      of the USART instances.
+  * @file    tim.h
+  * @brief   This file contains all the function prototypes for
+  *          the tim.c file
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -17,10 +17,11 @@
   ******************************************************************************
   */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __usart_H
-#define __usart_H
+#ifndef __TIM_H__
+#define __TIM_H__
+
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
@@ -30,15 +31,21 @@
 
 /* USER CODE END Includes */
 
-extern UART_HandleTypeDef huart4;
-extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim4;
+extern TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_UART4_Init(void);
-void MX_USART2_UART_Init(void);
+void MX_TIM1_Init(void);
+void MX_TIM3_Init(void);
+void MX_TIM4_Init(void);
+void MX_TIM14_Init(void);
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN Prototypes */
 
@@ -47,14 +54,7 @@ void MX_USART2_UART_Init(void);
 #ifdef __cplusplus
 }
 #endif
-#endif /*__ usart_H */
 
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
+#endif /* __TIM_H__ */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
