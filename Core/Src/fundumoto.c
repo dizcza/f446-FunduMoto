@@ -34,6 +34,7 @@ static uint32_t tx_buf_count = 0;
 
 /* Array for received commands */
 static uint8_t rx_cmd[32];
+static uint32_t rx_cmd_len = 0U;
 
 static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE_MAX];
 static uint32_t m_angular_dist_events = 0U;
@@ -160,7 +161,7 @@ static void FunduMoto_ChangeWheelVelocity(Fundu_Motor* motor, float velocity) {
 }
 
 
-static void FunduMoto_ProcessCommand(const uint32_t rx_cmd_len) {
+static void FunduMoto_ProcessCommand() {
 	if (rx_cmd_len == 0) {
 		return;
 	}
@@ -237,7 +238,6 @@ static void FunduMoto_ProcessCommand(const uint32_t rx_cmd_len) {
 
 void FunduMoto_ReadUART() {
 	uint32_t rx_count = RingBuffer_DMA_Count(&ringbuf_rx);
-	uint32_t rx_cmd_len = 0U;
 	/* Process each byte individually */
 	while (rx_count--) {
 		/* Read out one byte from RingBuffer */
@@ -249,7 +249,7 @@ void FunduMoto_ReadUART() {
 		case '\n':
 			/* Terminate string with \0 and process the command. */
 			rx_cmd[rx_cmd_len] = '\0';
-			FunduMoto_ProcessCommand(rx_cmd_len);
+			FunduMoto_ProcessCommand();
 			rx_cmd_len = 0U;
 			break;
 		default:
