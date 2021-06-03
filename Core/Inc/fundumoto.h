@@ -28,14 +28,16 @@
 // Full DC is defined by htim4.Period.
 #define DUTY_CYCLE_MIN_NORM (0.11f)
 
-/* Array for DMA to save Rx bytes */
-#define RINGBUF_RX_SIZE 256
+/* Rx and Tx buffers size */
+#define FUNDUMOTO_RX_SIZE 256   // ring buffer
+#define FUNDUMOTO_TX_SIZE 256   // normal
 /* ---- END MODIFIABLE ------- */
 
 
 #include <stdint.h>
 #include "stm32f446xx.h"
 #include "tim.h"
+#include "gym.h"
 
 
 typedef struct Fundu_Motor {
@@ -55,6 +57,10 @@ typedef struct SonarVector {
 	int32_t sonar_dist;
 } SonarVector;
 
+typedef enum {
+	FUNDU_MODE_JOYSTICK = 0,
+	FUNDU_MODE_AUTONOMOUS
+} FunduMode;
 
 extern Fundu_Motor motorA;
 extern Fundu_Motor motorB;
@@ -67,7 +73,12 @@ void FunduMoto_Init();
 void FunduMoto_ReadUART();
 void FunduMoto_Update();
 void FunduMoto_UserMove(int32_t direction_angle, float velocity);
+void FunduMoto_GymMove(const Gym_Action* action);
 int32_t FunduMoto_GetServoAngle();
+void FunduMoto_SetMode(FunduMode mode);
+void FunduMoto_Beep(GPIO_PinState state);
 
+// performance
+float FunduMoto_GetFPS();
 
 #endif /* FUNDUMOTO_H_ */

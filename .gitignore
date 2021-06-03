@@ -2,3 +2,4 @@ Debug/
 .settings/
 *generate_report.txt
 *.log
+.ai/

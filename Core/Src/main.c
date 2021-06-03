@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "fundumoto.h"
+#include "test_gym.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,6 +102,12 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   FunduMoto_Init();
+
+  ai_error err = Gym_InitNetwork();
+  assert_param(err.code == AI_ERROR_CODE_NONE);
+  Gym_LogNetworkInfo();
+
+  Test_GymInfer();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -180,7 +187,13 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+	while (1) {
+		FunduMoto_Beep(GPIO_PIN_SET);
+		HAL_Delay(10);
+		FunduMoto_Beep(GPIO_PIN_RESET);
+		HAL_Delay(990);
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -195,12 +208,9 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-	while (1) {
-		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-		HAL_Delay(300);
-	}
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+	Error_Handler();
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

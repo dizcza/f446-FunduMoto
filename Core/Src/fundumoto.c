@@ -26,13 +26,14 @@ Fundu_Motor motorB = { .htim = &htim14, .direction_gpio = GPIOA,
 volatile int32_t FunduMoto_MotorCycles = 0;
 volatile uint32_t FunduMoto_SonarEchoUSec = 0U;  // microseconds
 
-RingBuffer_DMA rx_buf_dma;
-uint8_t rx[RINGBUF_RX_SIZE];
-uint8_t tx[32];
+static RingBuffer_DMA ringbuf_rx;
+static uint8_t rx_buf[FUNDUMOTO_RX_SIZE];
+
+static uint8_t tx_buf[FUNDUMOTO_TX_SIZE];
+static uint32_t tx_buf_count = 0;
 
 /* Array for received commands */
-uint8_t rx_cmd[32];
-uint32_t rx_cmd_len = 0U;
+static uint8_t rx_cmd[32];
 
 static SonarVector m_sonar_vec[SONAR_MEDIAN_FILTER_SIZE_MAX];
 static uint32_t m_angular_dist_events = 0U;
@@ -43,12 +44,16 @@ static uint32_t m_sonar_max_dist = 400;
 static uint32_t m_sonar_tolerance = 1;
 static uint32_t m_sonar_median_filter_size = 5;
 
+// autonomous mode
+static int32_t m_servo_angle_step = GYM_SERVO_ANGLE_STEP;
+static FunduMode m_mode = FUNDU_MODE_JOYSTICK;
+
 static uint32_t FunduMoto_GetDutyCycle(float radius_norm);
 static void FunduMoto_ProcessCommand();
 static int8_t IsSonarVectorChanged(const SonarVector *vec);
 static void ResetInternalState();
 static void CopySonarVector(SonarVector *dest, const SonarVector *src);
-static HAL_StatusTypeDef SendSonarVec(const SonarVector *vec, const uint8_t is_target);
+static void TXWriteSonarVec(const SonarVector *vec, const uint8_t is_target);
 static void FunduMoto_ChangeWheelVelocity(Fundu_Motor* motor, float velocity);
 
 __STATIC_INLINE void ClampServoAngle(const int32_t left, const int32_t right) {
@@ -64,11 +69,22 @@ static void ResetInternalState() {
 	m_last_sonar_vec.sonar_dist = 0;
 }
 
-static HAL_StatusTypeDef SendSonarVec(const SonarVector *vec, const uint8_t is_target) {
+static void TXWriteSonarVec(const SonarVector *vec, const uint8_t is_target) {
 	float dist_norm = vec->sonar_dist / (float) m_sonar_max_dist;
-	sprintf((char *) tx, "S%d,%03ld,%.3f\r\n", is_target, vec->servo_angle, dist_norm);
-	return HAL_UART_Transmit_IT(&huart4, tx, strlen((char *) tx));
+	tx_buf_count += sprintf((char *) tx_buf + tx_buf_count, "S%d,%03ld,%.3f\r\n",
+			is_target, vec->servo_angle, dist_norm);
 }
+
+static HAL_StatusTypeDef TXSend() {
+	HAL_StatusTypeDef status = HAL_UART_Transmit_IT(&huart4, tx_buf, tx_buf_count);
+	tx_buf_count = 0;
+	return status;
+}
+
+static void TXWriteFPS(const float fps) {
+	tx_buf_count += sprintf((char *) tx_buf + tx_buf_count, "F%.2f\r\n", fps);
+}
+
 
 void FunduMoto_Init() {
 	assert_param(SONAR_TRIGGER_BURST_TICKS * SONAR_TICK_USEC == 10);
@@ -82,9 +98,9 @@ void FunduMoto_Init() {
 	htim3.Instance->CCR2 = SERVO_90_DC;
 
 	/* Init RingBuffer_DMA object */
-	RingBuffer_DMA_Init(&rx_buf_dma, huart4.hdmarx, rx, RINGBUF_RX_SIZE);
+	RingBuffer_DMA_Init(&ringbuf_rx, huart4.hdmarx, rx_buf, FUNDUMOTO_RX_SIZE);
 	/* Start UART4 DMA Reception */
-	HAL_UART_Receive_DMA(&huart4, rx, RINGBUF_RX_SIZE);
+	HAL_UART_Receive_DMA(&huart4, rx_buf, FUNDUMOTO_RX_SIZE);
 
 	ResetInternalState();
 }
@@ -126,6 +142,12 @@ void FunduMoto_UserMove(int32_t direction_angle, float velocity) {
 	FunduMoto_MotorCycles =	(uint32_t) (MOTOR_MOVE_PERIOD * htim4.Init.Period);
 }
 
+void FunduMoto_GymMove(const Gym_Action* action) {
+	FunduMoto_ChangeWheelVelocity(&motorA, action->left_wheel_vel);
+	FunduMoto_ChangeWheelVelocity(&motorB, action->right_wheel_vel);
+	FunduMoto_MotorCycles =	(uint32_t) (MOTOR_MOVE_PERIOD * htim4.Init.Period);
+}
+
 
 static void FunduMoto_ChangeWheelVelocity(Fundu_Motor* motor, float velocity) {
 	MotorDirection direction = FORWARD;
@@ -138,12 +160,17 @@ static void FunduMoto_ChangeWheelVelocity(Fundu_Motor* motor, float velocity) {
 }
 
 
-static void FunduMoto_ProcessCommand() {
+static void FunduMoto_ProcessCommand(const uint32_t rx_cmd_len) {
 	if (rx_cmd_len == 0) {
 		return;
 	}
 	ResetInternalState();
 	switch (rx_cmd[0]) {
+	case 'A':  // [A]utonomous
+		;
+		FunduMode mode = (FunduMode) atoi((const char*)rx_cmd + 1);
+		FunduMoto_SetMode(mode);
+		break;
 	case 'M':  // [M]otor
 		// format: M<angle:4d>,<velocity:.2f>
 		// angle in [-180, 180]
@@ -164,7 +191,7 @@ static void FunduMoto_ProcessCommand() {
 			return;
 		}
 		GPIO_PinState buzzer_state = (GPIO_PinState) (rx_cmd[1] - '0');
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, buzzer_state);
+		FunduMoto_Beep(buzzer_state);
 		break;
 	case 'S':  // [S]ervo
 		// format: S<angle:3d>
@@ -209,11 +236,12 @@ static void FunduMoto_ProcessCommand() {
 }
 
 void FunduMoto_ReadUART() {
-	uint32_t rx_count = RingBuffer_DMA_Count(&rx_buf_dma);
+	uint32_t rx_count = RingBuffer_DMA_Count(&ringbuf_rx);
+	uint32_t rx_cmd_len = 0U;
 	/* Process each byte individually */
 	while (rx_count--) {
 		/* Read out one byte from RingBuffer */
-		uint8_t b = RingBuffer_DMA_GetByte(&rx_buf_dma);
+		uint8_t b = RingBuffer_DMA_GetByte(&ringbuf_rx);
 		switch (b) {
 		case '\r':
 			// ignore \r
@@ -221,7 +249,7 @@ void FunduMoto_ReadUART() {
 		case '\n':
 			/* Terminate string with \0 and process the command. */
 			rx_cmd[rx_cmd_len] = '\0';
-			FunduMoto_ProcessCommand();
+			FunduMoto_ProcessCommand(rx_cmd_len);
 			rx_cmd_len = 0U;
 			break;
 		default:
@@ -232,6 +260,13 @@ void FunduMoto_ReadUART() {
 }
 
 int32_t FunduMoto_GetServoAngle() {
+	if (m_mode == FUNDU_MODE_AUTONOMOUS) {
+		m_servo_angle += m_servo_angle_step;
+		if (m_servo_angle <= -GYM_SERVO_ANGLE_MAX || m_servo_angle >= GYM_SERVO_ANGLE_MAX) {
+			m_servo_angle_step *= -1;
+		}
+		ClampServoAngle(-GYM_SERVO_ANGLE_MAX, GYM_SERVO_ANGLE_MAX);
+	}
 	return m_servo_angle;
 }
 
@@ -296,11 +331,28 @@ void ReadSonarDist() {
 	FunduMoto_SonarEchoUSec = SONAR_ECHO_USEC_IDLE;
 }
 
+void Gym_Update(const SonarVector* vec) {
+	float servo_angle = (float) vec->servo_angle;  // [-30, 30]
+	servo_angle = (servo_angle + GYM_SERVO_ANGLE_MAX) / (2 * GYM_SERVO_ANGLE_MAX);  // [0, 1]
+	float dist_to_obstacle = vec->sonar_dist / GYM_SENSOR_DIST_MAX;
+	if (dist_to_obstacle > 1.f) {
+		dist_to_obstacle = 1.f;
+	}
+	Gym_Observation observation = {
+			.dist_to_obstacle = dist_to_obstacle,
+			.servo_angle = servo_angle,
+	};
+	Gym_Action action;
+	Gym_Infer(&observation, &action);
+	FunduMoto_GymMove(&action);
+}
+
 
 void FunduMoto_Update() {
 	if (FunduMoto_SonarEchoUSec == SONAR_ECHO_USEC_IDLE) {
 		return;
 	}
+
 	ReadSonarDist();
 
 	SonarVector vec_median;
@@ -308,9 +360,26 @@ void FunduMoto_Update() {
 		return;
 	}
 
+	if (m_mode == FUNDU_MODE_AUTONOMOUS) {
+		Gym_Update(&vec_median);
+	}
+
 	if (!IsSonarVectorChanged(&vec_median)) {
 		return;
 	}
 
-	SendSonarVec(&vec_median, 0U);
+	TXWriteSonarVec(&vec_median, 0U);
+	TXWriteFPS(FunduMoto_GetFPS());
+
+	TXSend();
+
+}
+
+void FunduMoto_SetMode(FunduMode mode) {
+	m_mode = mode;
+	FunduMoto_MotorCycles = 0;
+}
+
+void FunduMoto_Beep(GPIO_PinState state) {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, state);
 }
